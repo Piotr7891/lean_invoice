@@ -75,8 +75,12 @@ WSGI_APPLICATION = 'auto_invoice.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'lean_invoice',
+        'USER': 'lean_user',
+        'PASSWORD': 'strongpassword123',
+        'HOST': 'localhost',   # or 'db' if using Docker Compose for both Django + Postgres
+        'PORT': '5432',
     }
 }
 
