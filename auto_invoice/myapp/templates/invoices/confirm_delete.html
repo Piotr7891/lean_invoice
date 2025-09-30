@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Delete Invoice | Lean Invoice{% endblock %}
+{% block content %}
+<div class="max-w-lg bg-white p-6 rounded-2xl shadow mx-auto">
+  <h1 class="text-xl font-bold mb-4">Delete invoice</h1>
+  <p class="mb-6">
+    Are you sure you want to delete invoice <strong>{{ invoice.number }}</strong>
+    for <strong>{{ invoice.customer.name }}</strong>?
+  </p>
+  <form method="post" class="flex items-center">
+    {% csrf_token %}
+    <button class="bg-red-600 text-white px-4 py-2 rounded">Yes, delete</button>
+    <a href="{% url 'invoice_list' %}" class="ml-3 underline">Cancel</a>
+  </form>
+</div>
+{% endblock %}

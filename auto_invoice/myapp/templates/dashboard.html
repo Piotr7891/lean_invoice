@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Dashboard | Lean Invoice{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">Dashboard</h1>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <a href="{% url 'customer_list' %}" class="bg-white p-6 rounded-2xl shadow hover:shadow-md">
+    <div class="text-sm text-gray-500">Customers</div>
+    <div class="text-3xl font-bold">{{ stats.customers }}</div>
+    <div class="mt-2 underline text-blue-600">Manage customers →</div>
+  </a>
+
+  <a href="{% url 'invoice_list' %}" class="bg-white p-6 rounded-2xl shadow hover:shadow-md">
+    <div class="text-sm text-gray-500">Invoices</div>
+    <div class="text-3xl font-bold">{{ stats.invoices }}</div>
+    <div class="mt-2 underline text-blue-600">Manage invoices →</div>
+  </a>
+</div>
+{% endblock %}

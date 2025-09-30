@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="max-w-md mx-auto bg-white p-6 rounded-2xl shadow">
+  <h2 class="text-2xl font-bold mb-6">Login</h2>
+
+  {% if form.non_field_errors %}
+    <div class="bg-red-50 border border-red-200 text-red-700 p-3 rounded mb-4">
+      {{ form.non_field_errors }}
+    </div>
+  {% endif %}
+
+  <form method="post" class="space-y-4">
+    {% csrf_token %}
+
+    <div>
+      <label for="{{ form.username.id_for_label }}" class="block text-sm font-medium mb-1">Username</label>
+      <input
+        type="text"
+        name="{{ form.username.html_name }}"
+        id="{{ form.username.id_for_label }}"
+        value="{{ form.username.value|default:'' }}"
+        class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
+        autocomplete="username"
+        required
+      />
+      {% for e in form.username.errors %}<p class="text-red-600 text-sm mt-1">{{ e }}</p>{% endfor %}
+    </div>
+
+    <div>
+      <label for="{{ form.password.id_for_label }}" class="block text-sm font-medium mb-1">Password</label>
+      <input
+        type="password"
+        name="{{ form.password.html_name }}"
+        id="{{ form.password.id_for_label }}"
+        class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring focus:ring-blue-300"
+        autocomplete="current-password"
+        required
+      />
+      {% for e in form.password.errors %}<p class="text-red-600 text-sm mt-1">{{ e }}</p>{% endfor %}
+    </div>
+
+    <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg">
+      Login
+    </button>
+  </form>
+
+  <p class="text-sm text-gray-600 mt-4 text-center">
+    Don’t have an account?
+    <a href="{% url 'signup' %}" class="text-blue-600 underline">Create one</a>
+  </p>
+</div>
+{% endblock %}

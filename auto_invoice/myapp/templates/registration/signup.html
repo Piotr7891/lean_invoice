@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Create account{% endblock %}
+{% block content %}
+<div class="max-w-md mx-auto bg-white p-6 rounded-2xl shadow">
+  <h2 class="text-2xl font-bold mb-6">Create account</h2>
+  <form method="post" class="space-y-4">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg">
+      Create account
+    </button>
+  </form>
+</div>
+{% endblock %}
