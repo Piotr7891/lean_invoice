@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Lean Invoice{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="icon" href="data:,">
     {% block head %}{% endblock %}
 </head>
 <body class="bg-gray-100 text-gray-900">
@@ -17,10 +18,15 @@
             <div class="flex items-center space-x-6">
                 {% if user.is_authenticated %}
                     <a href="{% url 'dashboard' %}" class="hover:underline">Dashboard</a>
-                    <a href="#" class="hover:underline">Customers</a>
-                    <a href="#" class="hover:underline">Invoices</a>
+                    <a href="{% url 'customer_list' %}" class="hover:underline">Customers</a>
+                    <a href="{% url 'invoice_list' %}" class="hover:underline">Invoices</a>
                     <span class="opacity-90">Hello, {{ user.username }}!</span>
-                    <a href="{% url 'logout' %}" class="underline">Logout</a>
+
+                    <!-- Secure POST logout -->
+                    <form method="post" action="{% url 'logout' %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="underline">Logout</button>
+                    </form>
                 {% else %}
                     <a href="{% url 'signup' %}" class="hover:underline">Register</a>
                     <a href="{% url 'login' %}" class="underline">Login</a>
