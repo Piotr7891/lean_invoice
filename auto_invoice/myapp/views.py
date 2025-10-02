@@ -106,3 +106,35 @@ def invoice_delete(request, pk):
         messages.success(request, "Invoice removed.")
         return redirect("invoice_list")
     return render(request, "invoices/confirm_delete.html", {"invoice": invoice})
+
+## NEW views for invoice actions
+@login_required
+def invoice_send(request, pk):
+    if request.method != "POST":
+        messages.error(request, "Invalid method.")
+        return redirect("invoice_list")
+    inv = get_object_or_404(Invoice, pk=pk)
+    inv.mark_sent()  # for now: only change status (no n8n call yet)
+    messages.success(request, f"Invoice {inv.number} marked as Sent.")
+    return redirect("invoice_list")
+
+@login_required
+def invoice_mark_paid(request, pk):
+    if request.method != "POST":
+        messages.error(request, "Invalid method.")
+        return redirect("invoice_list")
+    inv = get_object_or_404(Invoice, pk=pk)
+    inv.mark_paid()
+    messages.success(request, f"Invoice {inv.number} marked as Paid.")
+    return redirect("invoice_list")
+
+@login_required
+def invoice_cancel(request, pk):
+    if request.method != "POST":
+        messages.error(request, "Invalid method.")
+        return redirect("invoice_list")
+    inv = get_object_or_404(Invoice, pk=pk)
+    inv.mark_cancelled()
+    messages.success(request, f"Invoice {inv.number} cancelled.")
+    return redirect("invoice_list")
+

@@ -17,6 +17,11 @@ urlpatterns = [
     path("invoices/<int:pk>/edit/", views.invoice_update, name="invoice_update"),
     path("invoices/<int:pk>/delete/", views.invoice_delete, name="invoice_delete"),
 
+    # NEW actions
+    path("invoices/<int:pk>/send/", views.invoice_send, name="invoice_send"),
+    path("invoices/<int:pk>/mark-paid/", views.invoice_mark_paid, name="invoice_mark_paid"),
+    path("invoices/<int:pk>/cancel/", views.invoice_cancel, name="invoice_cancel"),
+
     # Auth
     path("signup/", views.signup, name="signup"),
 ]

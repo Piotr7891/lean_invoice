@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 class Customer(models.Model):
     name = models.CharField(max_length=255)
@@ -15,18 +16,22 @@ class Customer(models.Model):
 
 
 class Invoice(models.Model):
-    INVOICE_TYPES = [
-        ('INV', 'Invoice'),
-        ('PRO', 'Proforma Invoice'),
-        ('CN', 'Credit Note'),
-    ]
+    INVOICE_TYPES = [('INV','Invoice'), ('PRO','Proforma')]
+    STATUS = [('DRAFT','Draft'), ('SENT','Sent'), ('PAID','Paid'), ('CANCELLED','Cancelled')]
 
-    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name="invoices")
+    customer = models.ForeignKey('Customer', on_delete=models.CASCADE, related_name='invoices')
     invoice_type = models.CharField(max_length=3, choices=INVOICE_TYPES, default='INV')
-    number = models.CharField(max_length=50, unique=True)  # e.g. INV-2025-001
+    number = models.CharField(max_length=50, unique=True)
     issue_date = models.DateField()
     due_date = models.DateField()
     notes = models.TextField(blank=True, null=True)
+
+    # Status fields
+    status = models.CharField(max_length=10, choices=STATUS, default='DRAFT')
+    sent_at = models.DateTimeField(blank=True, null=True)
+    paid_at = models.DateTimeField(blank=True, null=True)
+    cancelled_at = models.DateTimeField(blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -34,23 +39,32 @@ class Invoice(models.Model):
 
     @property
     def total_amount(self):
+        # sum of item totals
         return sum(item.total_price for item in self.items.all())
+
+    # convenience setters
+    def mark_sent(self):
+        self.status = 'SENT'
+        self.sent_at = timezone.now()
+        self.save(update_fields=['status', 'sent_at'])
+
+    def mark_paid(self):
+        self.status = 'PAID'
+        self.paid_at = timezone.now()
+        self.save(update_fields=['status', 'paid_at'])
+
+    def mark_cancelled(self):
+        self.status = 'CANCELLED'
+        self.cancelled_at = timezone.now()
+        self.save(update_fields=['status', 'cancelled_at'])
 
 
 class InvoiceItem(models.Model):
-    TAX_RATES = [
-        (0.00, '0%'),
-        (5.00, '5%'),
-        (8.00, '8%'),
-        (23.00, '23%'),
-    ]
-
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="items")
     description = models.CharField(max_length=255)
     quantity = models.DecimalField(max_digits=10, decimal_places=2)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
-    vat_rate = models.DecimalField(max_digits=4, decimal_places=2, choices=TAX_RATES, default=0.00)
-
+    vat_rate = models.DecimalField(max_digits=4, decimal_places=2, default=0)  # e.g. 19.00 %
 
     def __str__(self):
         return f"{self.description} ({self.quantity} x {self.unit_price})"
