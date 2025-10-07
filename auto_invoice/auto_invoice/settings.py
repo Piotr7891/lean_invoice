@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -70,3 +71,7 @@ LOGOUT_REDIRECT_URL = '/'            # after logout
 STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# n8n integration settings
+N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "https://n8n.autowork.cloud/webhook/generate-invoice")
+HMAC_SHARED_SECRET = os.getenv("HMAC_SHARED_SECRET", "")  # optional
