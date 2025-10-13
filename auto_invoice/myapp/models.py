@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 
+
 class Customer(models.Model):
     name = models.CharField(max_length=255)
     email = models.EmailField(blank=True, null=True)
@@ -16,18 +17,33 @@ class Customer(models.Model):
 
 
 class Invoice(models.Model):
-    INVOICE_TYPES = [('INV','Invoice'), ('PRO','Proforma')]
-    STATUS = [('DRAFT','Draft'), ('SENT','Sent'), ('PAID','Paid'), ('CANCELLED','Cancelled')]
+
+    class InvoiceType(models.TextChoices):
+        INVOICE = "INV", "Invoice"
+        PROFORMA = "PRO", "Proforma"
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        SENT = "SENT", "Sent"
+        PAID = "PAID", "Paid"
+        CANCELLED = "CANCELLED", "Cancelled"
 
     customer = models.ForeignKey('Customer', on_delete=models.CASCADE, related_name='invoices')
-    invoice_type = models.CharField(max_length=3, choices=INVOICE_TYPES, default='INV')
+    invoice_type = models.CharField(
+        max_length=3,
+        choices=InvoiceType.choices,
+        default=InvoiceType.INVOICE,
+    )
     number = models.CharField(max_length=50, unique=True)
     issue_date = models.DateField()
     due_date = models.DateField()
     notes = models.TextField(blank=True, null=True)
 
-    # Status fields
-    status = models.CharField(max_length=10, choices=STATUS, default='DRAFT')
+    status = models.CharField(
+        max_length=10,
+        choices=Status.choices,
+        default=Status.DRAFT,
+    )
     sent_at = models.DateTimeField(blank=True, null=True)
     paid_at = models.DateTimeField(blank=True, null=True)
     cancelled_at = models.DateTimeField(blank=True, null=True)
@@ -39,22 +55,22 @@ class Invoice(models.Model):
 
     @property
     def total_amount(self):
-        # sum of item totals
+        """Sum of all invoice items (including VAT)."""
         return sum(item.total_price for item in self.items.all())
 
-    # convenience setters
+    # --- Convenience status setters ---
     def mark_sent(self):
-        self.status = 'SENT'
+        self.status = self.Status.SENT
         self.sent_at = timezone.now()
         self.save(update_fields=['status', 'sent_at'])
 
     def mark_paid(self):
-        self.status = 'PAID'
+        self.status = self.Status.PAID
         self.paid_at = timezone.now()
         self.save(update_fields=['status', 'paid_at'])
 
     def mark_cancelled(self):
-        self.status = 'CANCELLED'
+        self.status = self.Status.CANCELLED
         self.cancelled_at = timezone.now()
         self.save(update_fields=['status', 'cancelled_at'])
 

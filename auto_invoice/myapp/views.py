@@ -5,14 +5,11 @@ import requests
 
 from django.conf import settings
 from django.contrib import messages
-
+from django.contrib.auth import login as auth_login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
-from django.contrib.auth import login as auth_login
 from django.shortcuts import render, redirect, get_object_or_404
-from django.urls import reverse
 from django.views.decorators.http import require_POST
-from django.shortcuts import render, redirect, get_object_or_404
 
 from .models import Customer, Invoice
 from .forms import CustomerForm, InvoiceForm
@@ -22,30 +19,50 @@ from .forms import CustomerForm, InvoiceForm
 # Helpers for n8n webhook calling
 # ------------------------------
 def _hmac_signature(raw: bytes) -> str | None:
-    secret = (settings.HMAC_SHARED_SECRET or "").encode()
+    secret = (getattr(settings, "HMAC_SHARED_SECRET", "") or "").encode()
     if not secret:
         return None
     return hmac.new(secret, raw, hashlib.sha256).hexdigest()
 
+
 def _invoice_payload(inv: Invoice) -> dict:
-    """Build the payload expected by your n8n workflow. Adjust as needed."""
+    """
+    Build the payload expected by your n8n workflow.
+    Adjust as needed on the n8n side too.
+    """
+    # Safe fallbacks so we don't crash if a field is missing
+    currency = getattr(inv, "currency", "RON")  # default if you don’t have a currency field yet
+
     payload = {
         "invoice_id": inv.number,
         "issue_date": str(inv.issue_date),
         "due_date": str(inv.due_date),
-        "currency": inv.currency,
+        "currency": currency,
         "customer": {
-            "name": getattr(inv, "customer_name", "") or (inv.customer.name if getattr(inv, "customer", None) else ""),
-            "email": getattr(inv, "customer_email", "") or (getattr(inv.customer, "email", "") if getattr(inv, "customer", None) else ""),
+            "name": inv.customer.name if getattr(inv, "customer", None) else "",
+            "email": getattr(inv.customer, "email", "") if getattr(inv, "customer", None) else "",
         },
-        "items": [],
+        "items": [
+            {
+                "description": it.description,
+                "qty": float(it.quantity),
+                "unit_price": float(it.unit_price),
+                "vat_rate": float(it.vat_rate),
+                "total_price": float(it.total_price),
+            }
+            for it in inv.items.all()
+        ],
+        "totals": {
+            "grand_total": float(inv.total_amount),
+        },
+        "meta": {
+            "status": inv.status,
+            "type": inv.invoice_type,
+            "number": inv.number,
+        },
     }
-    # If you have related items, map them here:
-    # payload["items"] = [
-    #     {"name": it.name, "qty": it.quantity, "price": float(it.unit_price)}
-    #     for it in inv.items.all()
-    # ]
     return payload
+
 
 def _post_to_n8n(payload: dict, timeout=12) -> tuple[int | None, str | None]:
     """
@@ -71,6 +88,7 @@ def _post_to_n8n(payload: dict, timeout=12) -> tuple[int | None, str | None]:
 def home(request):
     return render(request, "home.html")
 
+
 @login_required
 def dashboard(request):
     stats = {
@@ -79,12 +97,13 @@ def dashboard(request):
     }
     return render(request, "dashboard.html", {"stats": stats})
 
+
 def signup(request):
     if request.method == "POST":
         form = UserCreationForm(request.POST)
         if form.is_valid():
             user = form.save()
-            auth_login(request, user)           # auto-login after signup
+            auth_login(request, user)  # auto-login after signup
             return redirect("dashboard")
     else:
         form = UserCreationForm()
@@ -99,6 +118,7 @@ def customer_list(request):
     customers = Customer.objects.order_by("name")
     return render(request, "customers/list.html", {"customers": customers})
 
+
 @login_required
 def customer_create(request):
     if request.method == "POST":
@@ -110,6 +130,7 @@ def customer_create(request):
     else:
         form = CustomerForm()
     return render(request, "customers/form.html", {"form": form, "title": "New Customer"})
+
 
 @login_required
 def customer_update(request, pk):
@@ -123,6 +144,7 @@ def customer_update(request, pk):
     else:
         form = CustomerForm(instance=customer)
     return render(request, "customers/form.html", {"form": form, "title": "Edit Customer"})
+
 
 @login_required
 def customer_delete(request, pk):
@@ -142,6 +164,7 @@ def invoice_list(request):
     invoices = Invoice.objects.select_related("customer").order_by("-issue_date")
     return render(request, "invoices/list.html", {"invoices": invoices})
 
+
 @login_required
 def invoice_create(request):
     if request.method == "POST":
@@ -153,6 +176,7 @@ def invoice_create(request):
     else:
         form = InvoiceForm()
     return render(request, "invoices/form.html", {"form": form, "title": "New Invoice"})
+
 
 @login_required
 def invoice_update(request, pk):
@@ -167,11 +191,12 @@ def invoice_update(request, pk):
         form = InvoiceForm(instance=invoice)
     return render(request, "invoices/form.html", {"form": form, "title": "Edit Invoice"})
 
+
 @login_required
 def invoice_delete(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk)
     if request.method == "POST":
-        invoice.delete()  # cascades if FK(on_delete=CASCADE)
+        invoice.delete()  # cascades via FK(on_delete=CASCADE)
         messages.success(request, "Invoice removed.")
         return redirect("invoice_list")
     return render(request, "invoices/confirm_delete.html", {"invoice": invoice})
@@ -193,22 +218,20 @@ def invoice_send(request, pk):
     payload = _invoice_payload(inv)
     code, err = _post_to_n8n(payload)
 
-    # Persist debug info if model has those fields (optional)
+    # Optional debug fields if you add them to the model later
     if hasattr(inv, "last_webhook_code"):
         inv.last_webhook_code = code or 0
     if hasattr(inv, "last_webhook_error"):
         inv.last_webhook_error = err or ""
 
     if code and 200 <= code < 300:
-        # mark as sent (prefer model helper if present)
-        if hasattr(inv, "mark_sent"):
-            inv.mark_sent()
-        else:
-            inv.status = Invoice.Status.SENT
-        inv.save()
+        # Prefer the model helper (saves with proper timestamps)
+        inv.mark_sent()
         messages.success(request, f"Invoice {inv.number} sent to n8n.")
     else:
-        inv.save(update_fields=["last_webhook_code", "last_webhook_error"] if hasattr(inv, "last_webhook_code") else None)
+        # Persist debug fields if you have them
+        if hasattr(inv, "last_webhook_code") or hasattr(inv, "last_webhook_error"):
+            inv.save(update_fields=[f for f in ["last_webhook_code", "last_webhook_error"] if hasattr(inv, f)])
         messages.error(request, f"Failed to send invoice {inv.number}: {err or f'HTTP {code}'}")
 
     return redirect("invoice_list")
@@ -224,11 +247,7 @@ def invoice_mark_paid(request, pk):
         messages.error(request, "Only sent invoices can be marked as paid.")
         return redirect("invoice_list")
 
-    if hasattr(inv, "mark_paid"):
-        inv.mark_paid()
-    else:
-        inv.status = Invoice.Status.PAID
-    inv.save()
+    inv.mark_paid()
     messages.success(request, f"Invoice {inv.number} marked as Paid.")
     return redirect("invoice_list")
 
@@ -238,15 +257,11 @@ def invoice_mark_paid(request, pk):
 def invoice_cancel(request, pk):
     inv = get_object_or_404(Invoice, pk=pk)
 
-    # Optional: you may restrict cancel to DRAFT only
-    # if inv.status != Invoice.Status.DRAFT:
-    #     messages.error(request, "Only draft invoices can be cancelled.")
-    #     return redirect("invoice_list")
+    # Decide your policy: allow cancelling anything but PAID, or only DRAFT
+    if inv.status == Invoice.Status.PAID:
+        messages.error(request, "Paid invoices cannot be cancelled.")
+        return redirect("invoice_list")
 
-    if hasattr(inv, "mark_cancelled"):
-        inv.mark_cancelled()
-    else:
-        inv.status = Invoice.Status.CANCELED
-    inv.save()
+    inv.mark_cancelled()
     messages.success(request, f"Invoice {inv.number} cancelled.")
     return redirect("invoice_list")
