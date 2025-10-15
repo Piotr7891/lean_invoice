@@ -1,0 +1,8 @@
+<h2 class="text-xl font-semibold mb-3">Mail sender</h2>
+<div class="flex gap-3">
+  <a class="px-3 py-2 rounded bg-red-600 text-white" href="{% url 'oauth_google_start' %}">Connect Gmail</a>
+  <a class="px-3 py-2 rounded bg-blue-700 text-white" href="{% url 'oauth_m365_start' %}">Connect Microsoft 365</a>
+</div>
+<p class="text-sm text-gray-500 mt-2">
+  We request the minimum scope (send only). Tokens are stored encrypted.
+</p>

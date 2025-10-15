@@ -28,13 +28,12 @@ def _hmac_signature(raw: bytes) -> str | None:
 def _invoice_payload(inv: Invoice) -> dict:
     """
     Build the payload expected by your n8n workflow.
-    Adjust as needed on the n8n side too.
     """
-    # Safe fallbacks so we don't crash if a field is missing
-    currency = getattr(inv, "currency", "RON")  # default if you don’t have a currency field yet
+    currency = getattr(inv, "currency", "RON")  # default until you add a real field
 
     payload = {
-        "invoice_id": inv.number,
+        "invoice_pk": inv.pk,                 # DB id for safe lookups
+        "invoice_id": inv.number,             # kept for backward-compat
         "issue_date": str(inv.issue_date),
         "due_date": str(inv.due_date),
         "currency": currency,
@@ -60,6 +59,7 @@ def _invoice_payload(inv: Invoice) -> dict:
             "type": inv.invoice_type,
             "number": inv.number,
         },
+        "owner": {"user_id": inv.owner_id},
     }
     return payload
 
@@ -92,8 +92,8 @@ def home(request):
 @login_required
 def dashboard(request):
     stats = {
-        "customers": Customer.objects.count(),
-        "invoices": Invoice.objects.count(),
+        "customers": Customer.objects.filter(owner=request.user).count(),
+        "invoices":   Invoice.objects.filter(owner=request.user).count(),
     }
     return render(request, "dashboard.html", {"stats": stats})
 
@@ -115,7 +115,7 @@ def signup(request):
 # ------------------------------
 @login_required
 def customer_list(request):
-    customers = Customer.objects.order_by("name")
+    customers = Customer.objects.filter(owner=request.user).order_by("name")
     return render(request, "customers/list.html", {"customers": customers})
 
 
@@ -124,7 +124,7 @@ def customer_create(request):
     if request.method == "POST":
         form = CustomerForm(request.POST)
         if form.is_valid():
-            form.save()
+            form.save(owner=request.user)
             messages.success(request, "Customer created.")
             return redirect("customer_list")
     else:
@@ -134,11 +134,11 @@ def customer_create(request):
 
 @login_required
 def customer_update(request, pk):
-    customer = get_object_or_404(Customer, pk=pk)
+    customer = get_object_or_404(Customer, pk=pk, owner=request.user)
     if request.method == "POST":
         form = CustomerForm(request.POST, instance=customer)
         if form.is_valid():
-            form.save()
+            form.save(owner=request.user)
             messages.success(request, "Customer updated.")
             return redirect("customer_list")
     else:
@@ -148,7 +148,7 @@ def customer_update(request, pk):
 
 @login_required
 def customer_delete(request, pk):
-    customer = get_object_or_404(Customer, pk=pk)
+    customer = get_object_or_404(Customer, pk=pk, owner=request.user)
     if request.method == "POST":
         customer.delete()
         messages.success(request, "Customer removed.")
@@ -161,42 +161,47 @@ def customer_delete(request, pk):
 # ------------------------------
 @login_required
 def invoice_list(request):
-    invoices = Invoice.objects.select_related("customer").order_by("-issue_date")
+    invoices = (
+        Invoice.objects
+        .filter(owner=request.user)
+        .select_related("customer")
+        .order_by("-issue_date", "-id")
+    )
     return render(request, "invoices/list.html", {"invoices": invoices})
 
 
 @login_required
 def invoice_create(request):
     if request.method == "POST":
-        form = InvoiceForm(request.POST)
+        form = InvoiceForm(request.POST, owner=request.user)
         if form.is_valid():
-            form.save()
+            form.save(owner=request.user)
             messages.success(request, "Invoice created.")
             return redirect("invoice_list")
     else:
-        form = InvoiceForm()
+        form = InvoiceForm(owner=request.user)
     return render(request, "invoices/form.html", {"form": form, "title": "New Invoice"})
 
 
 @login_required
 def invoice_update(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk)
+    invoice = get_object_or_404(Invoice, pk=pk, owner=request.user)
     if request.method == "POST":
-        form = InvoiceForm(request.POST, instance=invoice)
+        form = InvoiceForm(request.POST, instance=invoice, owner=request.user)
         if form.is_valid():
-            form.save()
+            form.save(owner=request.user)
             messages.success(request, "Invoice updated.")
             return redirect("invoice_list")
     else:
-        form = InvoiceForm(instance=invoice)
+        form = InvoiceForm(instance=invoice, owner=request.user)
     return render(request, "invoices/form.html", {"form": form, "title": "Edit Invoice"})
 
 
 @login_required
 def invoice_delete(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk)
+    invoice = get_object_or_404(Invoice, pk=pk, owner=request.user)
     if request.method == "POST":
-        invoice.delete()  # cascades via FK(on_delete=CASCADE)
+        invoice.delete()
         messages.success(request, "Invoice removed.")
         return redirect("invoice_list")
     return render(request, "invoices/confirm_delete.html", {"invoice": invoice})
@@ -208,9 +213,8 @@ def invoice_delete(request, pk):
 @login_required
 @require_POST
 def invoice_send(request, pk):
-    inv = get_object_or_404(Invoice, pk=pk)
+    inv = get_object_or_404(Invoice, pk=pk, owner=request.user)
 
-    # Only DRAFT can be sent
     if inv.status != Invoice.Status.DRAFT:
         messages.error(request, "Only draft invoices can be sent.")
         return redirect("invoice_list")
@@ -218,18 +222,15 @@ def invoice_send(request, pk):
     payload = _invoice_payload(inv)
     code, err = _post_to_n8n(payload)
 
-    # Optional debug fields if you add them to the model later
     if hasattr(inv, "last_webhook_code"):
         inv.last_webhook_code = code or 0
     if hasattr(inv, "last_webhook_error"):
         inv.last_webhook_error = err or ""
 
     if code and 200 <= code < 300:
-        # Prefer the model helper (saves with proper timestamps)
         inv.mark_sent()
         messages.success(request, f"Invoice {inv.number} sent to n8n.")
     else:
-        # Persist debug fields if you have them
         if hasattr(inv, "last_webhook_code") or hasattr(inv, "last_webhook_error"):
             inv.save(update_fields=[f for f in ["last_webhook_code", "last_webhook_error"] if hasattr(inv, f)])
         messages.error(request, f"Failed to send invoice {inv.number}: {err or f'HTTP {code}'}")
@@ -240,9 +241,8 @@ def invoice_send(request, pk):
 @login_required
 @require_POST
 def invoice_mark_paid(request, pk):
-    inv = get_object_or_404(Invoice, pk=pk)
+    inv = get_object_or_404(Invoice, pk=pk, owner=request.user)
 
-    # Only SENT can be marked as paid
     if inv.status != Invoice.Status.SENT:
         messages.error(request, "Only sent invoices can be marked as paid.")
         return redirect("invoice_list")
@@ -255,9 +255,8 @@ def invoice_mark_paid(request, pk):
 @login_required
 @require_POST
 def invoice_cancel(request, pk):
-    inv = get_object_or_404(Invoice, pk=pk)
+    inv = get_object_or_404(Invoice, pk=pk, owner=request.user)
 
-    # Decide your policy: allow cancelling anything but PAID, or only DRAFT
     if inv.status == Invoice.Status.PAID:
         messages.error(request, "Paid invoices cannot be cancelled.")
         return redirect("invoice_list")

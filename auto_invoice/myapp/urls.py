@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import views_oauth, views_mailer_api
 
 urlpatterns = [
     path("", views.home, name="home"),
@@ -24,4 +25,16 @@ urlpatterns = [
 
     # Auth
     path("signup/", views.signup, name="signup"),
+
+
+    # OAuth starts & callbacks
+    path("oauth/google/start", views_oauth.google_start, name="oauth_google_start"),
+    path("oauth/google/callback", views_oauth.google_callback, name="oauth_google_cb"),
+    path("oauth/m365/start", views_oauth.m365_start, name="oauth_m365_start"),
+    path("oauth/m365/callback", views_oauth.m365_callback, name="oauth_m365_cb"),
+
+    # n8n <-> app API
+    path("api/mailer/token", views_mailer_api.get_mail_token, name="mailer_get_token"),
+    path("api/mailer/send", views_mailer_api.gmail_send, name="mailer_gmail_send"),  # only if using Gmail Option A
+    path("api/mailer/events", views_mailer_api.mail_events, name="mailer_events"),   # optional for webhooks
 ]

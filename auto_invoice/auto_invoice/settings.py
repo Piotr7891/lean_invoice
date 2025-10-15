@@ -92,3 +92,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ---------------------------------------------------------------------
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "https://n8n.autowork.cloud/webhook/generate-invoice")
 HMAC_SHARED_SECRET = os.getenv("HMAC_SHARED_SECRET", "")
+
+# ---------------------------------------------------------------------
+# Crypto & OAuth
+# ---------------------------------------------------------------------
+FERNET_KEY = os.getenv("FERNET_KEY")  # must be 44 chars, base64 for 32-byte key
+
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "")
+
+MS_OAUTH_CLIENT_ID = os.getenv("MS_OAUTH_CLIENT_ID", "")
+MS_OAUTH_CLIENT_SECRET = os.getenv("MS_OAUTH_CLIENT_SECRET", "")
+MS_REDIRECT_URI = os.getenv("MS_REDIRECT_URI", "")
+MS_TENANT = os.getenv("MS_TENANT", "common")
